@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
 import { AuthDto } from './dto';
 import * as argon from 'argon2';
 
@@ -9,17 +10,42 @@ export class AuthService {
 
   async signUp(dto: AuthDto) {
     const hash = await argon.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        hash,
-      },
-    });
-    delete user.hash;
-    return user;
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          hash,
+        },
+      });
+      delete user.hash;
+      return user;
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ForbiddenException('email already in use');
+        }
+      }
+      throw error;
+    }
   }
 
-  signIn() {
-    return { msg: 'i have signed in' };
+  async signIn(dto: AuthDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: dto.email,
+      },
+    });
+
+    if (!user) {
+      throw new ForbiddenException('invalid credentials');
+    }
+
+    const pwMatches = await argon.verify(user.hash, dto.password);
+    if (!pwMatches) {
+      throw new ForbiddenException('invalid credentials');
+    }
+
+    delete user.hash;
+    return user;
   }
 }

@@ -18,6 +18,10 @@ model User {
     lastName    String?
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
+
+    bookmarks   Bookmark[]
+
+    @@map("users")
 }
 model Bookmark {
     id          Int      @default(autoincrement()) @id
@@ -26,4 +30,9 @@ model Bookmark {
     title       String
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
+
+    userId      Int
+    user        User     @relation(fields: [userId], references: [id])
+
+    @@map("bookmarks")
 }
